@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Safety Alert Screening Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#screeningForm">Skip to screening form</a>
+    <main id="main-content" class="app-shell">
+      <header class="hero-card" role="banner">
+        <div>
+          <p class="eyebrow">Medical Device Safety Screening</p>
+          <h1>Screen global alerts against your department’s device database.</h1>
+          <p class="subtitle">
+            Paste an alert email or safety notice, and the system will highlight devices that may be relevant to your MDD-style register.
+          </p>
+        </div>
+        <div class="hero-badge">Copy-ready email output</div>
+      </header>
+
+      <section class="content-grid" aria-label="Screening workflow">
+        <form id="screeningForm" class="panel form-panel">
+          <div class="panel-header">
+            <h2>Alert intake</h2>
+            <p>Paste the alert content or email body below.</p>
+          </div>
+
+          <label for="source">Alert source (optional)</label>
+          <select id="source" name="source">
+            <option value="">Select source (optional)</option>
+            <option value="TGA">TGA</option>
+            <option value="FDA">FDA</option>
+            <option value="EU">EU</option>
+            <option value="NMPA">NMPA</option>
+            <option value="Other">Other</option>
+          </select>
+
+          <label for="link">Link / reference (optional)</label>
+          <input type="url" id="link" name="link" placeholder="https://example.com/alert" />
+
+          <label for="serialPart">Serial / lot / part number (optional)</label>
+          <input type="text" id="serialPart" name="serialPart" placeholder="e.g. LCSU 4 or 12345" />
+
+          <label for="alertText">Alert content / email body</label>
+          <textarea id="alertText" name="alertText" rows="12" placeholder="Paste the safety alert here..." required aria-describedby="alertHelp"></textarea>
+          <p id="alertHelp" class="field-hint">Paste the full alert text so the system can compare it with the device register.</p>
+
+          <div class="actions">
+            <button type="submit">Screen alert</button>
+            <button type="button" id="useExample" class="secondary">Load example</button>
+            <button type="button" id="clearForm" class="secondary">Clear</button>
+          </div>
+        </form>
+
+        <section class="panel results-panel" aria-labelledby="resultsHeading">
+          <div class="panel-header">
+            <h2 id="resultsHeading">Screening result</h2>
+            <p>The matching table below is ready to paste into your email board.</p>
+          </div>
+
+          <div id="resultSummary" class="summary-card" role="status" aria-live="polite" aria-atomic="true">No screening has been run yet.</div>
+
+          <div class="toolbar">
+            <button type="button" id="copyTable" class="secondary">Copy for Excel</button>
+          </div>
+          <p class="subtitle">The copy button exports tab-separated rows that paste directly into Excel.</p>
+
+          <div id="resultTable" class="table-wrap" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section class="panel database-panel" aria-labelledby="databaseHeading">
+        <div class="panel-header">
+          <h2 id="databaseHeading">Device register</h2>
+          <p>This register is populated from the MDD medical device database and is intended to support broader screening coverage.</p>
+        </div>
+        <div id="databaseList" class="database-list" role="list" aria-label="Loaded device register"></div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
