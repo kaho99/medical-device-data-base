@@ -4,12 +4,13 @@ const resultTable = document.getElementById('resultTable');
 const databaseList = document.getElementById('databaseList');
 const copyButton = document.getElementById('copyTable');
 const generateReportButton = document.getElementById('generateReport');
+const exportPdfButton = document.getElementById('exportPdf');
 const useExampleButton = document.getElementById('useExample');
 const clearFormButton = document.getElementById('clearForm');
 
 let deviceRegistry = [];
 
-if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !useExampleButton || !clearFormButton) {
+if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !exportPdfButton || !useExampleButton || !clearFormButton) {
   throw new Error('The screening page is missing required UI elements.');
 }
 
@@ -414,6 +415,18 @@ copyButton.addEventListener('click', async () => {
   } catch (error) {
     resultSummary.innerHTML = '<strong>Copy failed.</strong> Please select and copy the table manually.';
   }
+});
+
+exportPdfButton.addEventListener('click', () => {
+  const currentReport = resultTable.innerHTML.trim();
+  if (!currentReport) {
+    resultSummary.innerHTML = '<strong>Please generate a report first.</strong>';
+    return;
+  }
+
+  document.body.classList.add('print-report');
+  window.print();
+  document.body.classList.remove('print-report');
 });
 
 generateReportButton.addEventListener('click', () => {

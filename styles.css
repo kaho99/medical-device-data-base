@@ -310,11 +310,51 @@ caption {
     padding-left: 18px;
   }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media print {
+  body:not(.print-report) {
+    visibility: hidden;
+  }
+  body.print-report {
+    background: #fff;
+    color: #000;
+    visibility: visible;
+  }
+  body.print-report * {
+    visibility: visible;
+  }
+  body.print-report .app-shell {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+  body.print-report header,
+  body.print-report .content-grid,
+  body.print-report .database-panel,
+  body.print-report .panel-header,
+  body.print-report .toolbar,
+  body.print-report label,
+  body.print-report input,
+  body.print-report select,
+  body.print-report textarea,
+  body.print-report button,
+  body.print-report .database-list,
+  body.print-report .summary-card {
+    display: none !important;
+  }
 }
 
 @media (max-width: 900px) {
