@@ -281,15 +281,45 @@ function buildExcelText(matches) {
   return [header, ...rows].join('\n');
 }
 
-function generateReportForm(formData) {
-  const sourceText = escapeHtml(formData.source || 'Medical Device Safety Alert report from department of health');
+function extractReportField(pattern, text) {
+  const match = text.match(pattern);
+  return match ? match[1].trim() : '';
+}
+
+function parseReportFields(formData) {
+  const alertText = String(formData.alertText || '');
+  const defaultSource = 'Medical Device Safety Alert report from department of health';
+
+  return {
+    sourceText: defaultSource,
+    issuingAuthority: defaultSource,
+    alertCategory: extractReportField(/alert category[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
+    affectedDescription: extractReportField(/(?:affected equipment|affected equipment\/system|affected system|equipment\/system|equipment)[\s:\-]*([^\n\.]+)/i, alertText) || 'Not specified',
+    affectedManufacturer: extractReportField(/manufacturer[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
+    affectedModel: extractReportField(/model[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
+    serialNumber: extractReportField(/serial(?: number)?[:\s]*([^\n\.]+)/i, alertText) || String(formData.serialPart || 'Not specified'),
+    descriptionOfIssue: extractReportField(/(?:issue|problem|fault|failure|malfunction|defect)[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
+    reportedRootCause: extractReportField(/(?:root cause|cause)[:\s]*([^\n\.]+)/i, alertText) || 'Not specified'
+  };
+}
+
+function generateReportForm(formData, reportFields, matchHtml) {
+  const sourceText = escapeHtml(reportFields.sourceText);
+  const issuingAuthority = escapeHtml(reportFields.issuingAuthority);
+  const alertCategory = escapeHtml(reportFields.alertCategory);
+  const affectedDescription = escapeHtml(reportFields.affectedDescription);
+  const affectedManufacturer = escapeHtml(reportFields.affectedManufacturer);
+  const affectedModel = escapeHtml(reportFields.affectedModel);
+  const serialNumber = escapeHtml(reportFields.serialNumber);
+  const descriptionOfIssue = escapeHtml(reportFields.descriptionOfIssue);
+  const reportedRootCause = escapeHtml(reportFields.reportedRootCause);
 
   return `
     <div class="report">
       <h2 class="report-title">SAFETY CASE ASSESSMENT &amp; PROGRESS REPORT</h2>
       <div class="report-row"><strong>source of information:</strong> ${sourceText}</div>
-      <div class="report-row">Recieved date: ____________________</div>
-      <div class="report-row">File Ref: _________________________</div>
+      <div class="report-row"><strong>Recieved date:</strong> ____________________</div>
+      <div class="report-row"><strong>File Ref:</strong> _________________________</div>
 
       <br/><br/>
       <div class="report-row report-label">Details of safety information:</div>
@@ -298,33 +328,37 @@ function generateReportForm(formData) {
         <tbody>
           <tr>
             <td class="part">a.</td>
-            <td class="part-content">Issuing authority: _______________________________</td>
+            <td class="part-content">Issuing authority: ${issuingAuthority}</td>
           </tr>
           <tr>
             <td class="part">b.</td>
-            <td class="part-content">Alert category: _________________________________</td>
+            <td class="part-content">Alert category: ${alertCategory}</td>
           </tr>
           <tr>
             <td class="part">c.</td>
             <td class="part-content">Affected equipment/system:
               <ul class="subpoints">
-                <li>Description: _______________________________</li>
-                <li>Manufacturer: ______________________________</li>
-                <li>Make / model: ______________________________</li>
-                <li>Serial No. (if any): ________________________</li>
+                <li>Description: ${affectedDescription}</li>
+                <li>Manufacturer: ${affectedManufacturer}</li>
+                <li>Make / model: ${affectedModel}</li>
+                <li>Serial No. (if any): ${serialNumber}</li>
               </ul>
             </td>
           </tr>
           <tr>
             <td class="part">d.</td>
-            <td class="part-content">Description of issue: _________________________</td>
+            <td class="part-content">Description of issue: ${descriptionOfIssue}</td>
           </tr>
           <tr>
             <td class="part">e.</td>
-            <td class="part-content">Reported root cause: _________________________</td>
+            <td class="part-content">Reported root cause: ${reportedRootCause}</td>
           </tr>
         </tbody>
       </table>
+
+      <br/><br/>
+      <div class="report-row report-label">Relevant device matches:</div>
+      ${matchHtml}
 
       <br/><br/>
       <div class="report-row report-underline">prepared by:</div>
@@ -425,8 +459,14 @@ exportPdfButton.addEventListener('click', () => {
   }
 
   document.body.classList.add('print-report');
-  window.print();
-  document.body.classList.remove('print-report');
+  window.onafterprint = () => {
+    document.body.classList.remove('print-report');
+    window.onafterprint = null;
+  };
+
+  requestAnimationFrame(() => {
+    window.print();
+  });
 });
 
 generateReportButton.addEventListener('click', () => {
@@ -437,8 +477,11 @@ generateReportButton.addEventListener('click', () => {
     alertText: document.getElementById('alertText').value
   };
 
-  resultTable.innerHTML = generateReportForm(formData);
-  resultSummary.innerHTML = '<strong>Report form generated.</strong> Use browser print or copy to save it.';
+  const reportFields = parseReportFields(formData);
+  const result = screenAlert(formData.alertText, reportFields.sourceText, formData.link, formData.serialPart);
+  const matchHtml = buildTable(result.matches);
+  resultTable.innerHTML = generateReportForm(formData, reportFields, matchHtml);
+  resultSummary.innerHTML = '<strong>Report form generated.</strong> Use Export as PDF to print the visible report.';
 });
 
 useExampleButton.addEventListener('click', () => {
