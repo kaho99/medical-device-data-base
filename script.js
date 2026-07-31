@@ -243,7 +243,11 @@ function buildTable(matches) {
   const rows = matches
     .map(
       (device) => `
-        <tr>
+        <tr class="match-row" data-id="${escapeHtml(device.id)}" data-description="${escapeHtml(
+        device.description
+      )}" data-manufacturer="${escapeHtml(device.manufacturer)}" data-model="${escapeHtml(
+        device.model
+      )}" data-issue="${escapeHtml(device.issue)}">
           <td>${escapeHtml(device.id)}</td>
           <td>${escapeHtml(device.description)}</td>
           <td>${escapeHtml(device.manufacturer)}</td>
@@ -556,3 +560,27 @@ clearFormButton.addEventListener('click', () => {
 });
 
 loadDeviceRegistry();
+
+// Click-to-screen: clicking a match row will populate the form and re-run screening
+resultTable.addEventListener('click', (e) => {
+  const tr = e.target.closest && e.target.closest('tr.match-row');
+  if (!tr) return;
+  const id = tr.dataset.id || '';
+  const description = tr.dataset.description || '';
+
+  const serialInput = document.getElementById('serialPart');
+  const alertInput = document.getElementById('alertText');
+  if (serialInput) serialInput.value = id;
+  if (alertInput) alertInput.value = description;
+
+  const formData = {
+    source: document.getElementById('source').value,
+    link: document.getElementById('link').value,
+    serialPart: serialInput ? serialInput.value : id,
+    alertText: alertInput ? alertInput.value : description
+  };
+
+  const result = screenAlert(formData.alertText, formData.source, formData.link, formData.serialPart);
+  renderResult(result, formData);
+  resultSummary.innerHTML = '<strong>Screened selected device.</strong>';
+});

@@ -234,6 +234,11 @@ caption {
   color: var(--muted);
 }
 
+.match-row {
+  cursor: pointer;
+}
+.match-row:hover { background: rgba(255,255,255,0.04); }
+
 .database-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
