@@ -285,8 +285,49 @@ function buildExcelText(matches) {
   return [header, ...rows].join('\r\n');
 }
 
-function downloadCsv(filename, content) {
-  const blob = new Blob(["\uFEFF" + content], { type: 'text/csv;charset=utf-8;' });
+function buildExcelHtml(matches) {
+  if (!matches.length) {
+    return '<table><thead><tr><th>Serial No.</th><th>Description</th><th>Make</th><th>Model</th><th>Issue</th></tr></thead><tbody></tbody></table>';
+  }
+
+  const rows = matches.map((device) => `
+      <tr>
+        <td>${escapeHtml(device.id)}</td>
+        <td>${escapeHtml(device.description)}</td>
+        <td>${escapeHtml(device.manufacturer)}</td>
+        <td>${escapeHtml(device.model)}</td>
+        <td>${escapeHtml(device.issue)}</td>
+      </tr>`).join('');
+
+  return `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <style>
+        table { border-collapse: collapse; }
+        th, td { border: 1px solid #000; padding: 6px; }
+      </style>
+    </head>
+    <body>
+      <table>
+        <thead>
+          <tr>
+            <th>Serial No.</th>
+            <th>Description</th>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Issue</th>
+          </tr>
+        </thead>
+        <tbody>${rows}
+        </tbody>
+      </table>
+    </body>
+    </html>`;
+}
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
@@ -467,8 +508,8 @@ copyButton.addEventListener('click', () => {
     return;
   }
 
-  const csv = buildExcelText(result.matches);
-  downloadCsv('device-screening-export.csv', csv);
+  const html = buildExcelHtml(result.matches);
+  downloadFile('device-screening-export.xls', html, 'application/vnd.ms-excel;charset=utf-8;');
   resultSummary.innerHTML = '<strong>Excel file downloaded.</strong> Open it in Excel to view the matching table.';
 });
 
