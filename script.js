@@ -271,14 +271,33 @@ function buildTable(matches) {
 }
 
 function buildExcelText(matches) {
+  const escapeCell = (value) => String(value || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
+  const header = ['Serial No.', 'Description', 'Make', 'Model', 'Issue'].map((cell) => `"${cell}"`).join(',');
+
   if (!matches.length) {
-    return 'No clear matches found.';
+    return header;
   }
 
-  const escapeCell = (value) => String(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
-  const header = ['Serial No.', 'Description', 'Make', 'Model', 'Issue'].join('\t');
-  const rows = matches.map((device) => [device.id, device.description, device.manufacturer, device.model, device.issue].map(escapeCell).join('\t'));
-  return [header, ...rows].join('\n');
+  const rows = matches.map((device) => [device.id, device.description, device.manufacturer, device.model, device.issue]
+    .map((value) => `"${escapeCell(value)}"`)
+    .join(','));
+
+  return [header, ...rows].join('\r\n');
+}
+
+function downloadCsv(filename, content) {
+  const blob = new Blob(["\uFEFF" + content], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.display = 'none';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function extractReportField(pattern, text) {
@@ -428,7 +447,7 @@ form.addEventListener('submit', (event) => {
   renderResult(result, formData);
 });
 
-copyButton.addEventListener('click', async () => {
+copyButton.addEventListener('click', () => {
   const formData = {
     source: document.getElementById('source').value,
     link: document.getElementById('link').value,
@@ -442,13 +461,15 @@ copyButton.addEventListener('click', async () => {
   }
 
   const result = screenAlert(formData.alertText, formData.source, formData.link, formData.serialPart);
-  const text = buildExcelText(result.matches);
-  try {
-    await navigator.clipboard.writeText(text);
-    resultSummary.innerHTML = '<strong>Excel-ready table copied.</strong> Paste it into Excel or your email board.';
-  } catch (error) {
-    resultSummary.innerHTML = '<strong>Copy failed.</strong> Please select and copy the table manually.';
+
+  if (!result.matches.length) {
+    resultSummary.innerHTML = '<strong>No relevant devices found.</strong> Nothing to export.';
+    return;
   }
+
+  const csv = buildExcelText(result.matches);
+  downloadCsv('device-screening-export.csv', csv);
+  resultSummary.innerHTML = '<strong>Excel file downloaded.</strong> Open it in Excel to view the matching table.';
 });
 
 exportPdfButton.addEventListener('click', () => {
