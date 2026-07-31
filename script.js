@@ -464,9 +464,9 @@ exportPdfButton.addEventListener('click', () => {
     window.onafterprint = null;
   };
 
-  requestAnimationFrame(() => {
+  setTimeout(() => {
     window.print();
-  });
+  }, 120);
 });
 
 generateReportButton.addEventListener('click', () => {

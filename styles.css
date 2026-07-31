@@ -324,23 +324,42 @@ caption {
 
 @media print {
   body:not(.print-report) {
-    visibility: hidden;
+    display: none !important;
   }
+
   body.print-report {
-    background: #fff;
-    color: #000;
-    visibility: visible;
+    display: block !important;
+    background: #fff !important;
+    color: #000 !important;
   }
+
   body.print-report * {
-    visibility: visible;
+    visibility: hidden !important;
   }
-  body.print-report .app-shell {
-    max-width: none;
-    margin: 0;
-    padding: 0;
-    background: #fff;
-    box-shadow: none;
+
+  body.print-report .results-panel,
+  body.print-report .results-panel *,
+  body.print-report .report,
+  body.print-report .report *,
+  body.print-report #resultTable {
+    visibility: visible !important;
   }
+
+  body.print-report .results-panel,
+  body.print-report .report,
+  body.print-report #resultTable {
+    display: block !important;
+  }
+
+  body.print-report .app-shell,
+  body.print-report .results-panel {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
   body.print-report header,
   body.print-report .form-panel,
   body.print-report .database-panel,
@@ -355,21 +374,7 @@ caption {
   body.print-report .summary-card {
     display: none !important;
   }
-  body.print-report .results-panel,
-  body.print-report #resultTable,
-  body.print-report .report,
-  body.print-report .report-table,
-  body.print-report .report-table td,
-  body.print-report .report-table th,
-  body.print-report table {
-    visibility: visible !important;
-    display: table !important;
-  }
-  body.print-report .results-panel {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
+
   body.print-report .report {
     background: transparent !important;
     color: #000 !important;
@@ -377,12 +382,17 @@ caption {
     padding: 0 !important;
     margin: 0 !important;
   }
-  body.print-report .report-table {
+
+  body.print-report .report-table,
+  body.print-report .report-table td,
+  body.print-report .report-table th,
+  body.print-report #resultTable table {
     border: 1px solid #000 !important;
   }
+
   body.print-report .report-table td,
   body.print-report .report-table th {
-    border: 1px solid #000 !important;
+    padding: 8px !important;
   }
 }
 
