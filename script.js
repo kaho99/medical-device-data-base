@@ -363,7 +363,7 @@ function parseReportFields(formData) {
   };
 }
 
-function generateReportForm(formData, reportFields) {
+function generateReportForm(formData, reportFields, matchHtml) {
   const sourceText = escapeHtml(reportFields.sourceText);
   const issuingAuthority = escapeHtml(reportFields.issuingAuthority);
   const alertCategory = escapeHtml(reportFields.alertCategory);
@@ -415,6 +415,10 @@ function generateReportForm(formData, reportFields) {
           </tr>
         </tbody>
       </table>
+
+      <br/><br/>
+      <div class="report-row report-label">Relevant device matches:</div>
+      ${matchHtml}
 
       <br/><br/>
       <div class="report-row report-underline">prepared by:</div>
@@ -536,7 +540,9 @@ generateReportButton.addEventListener('click', () => {
   };
 
   const reportFields = parseReportFields(formData);
-  resultTable.innerHTML = generateReportForm(formData, reportFields);
+  const result = screenAlert(formData.alertText, reportFields.sourceText, formData.link, formData.serialPart);
+  const matchHtml = buildTable(result.matches);
+  resultTable.innerHTML = generateReportForm(formData, reportFields, matchHtml);
   resultSummary.innerHTML = '<strong>Report form generated.</strong> Use Export as PDF to print the visible report.';
 });
 
