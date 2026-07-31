@@ -337,22 +337,35 @@ caption {
     visibility: hidden !important;
   }
 
-  body.print-report .results-panel,
-  body.print-report .results-panel *,
+  body.print-report #reportOutput,
+  body.print-report #reportOutput *,
   body.print-report .report,
-  body.print-report .report *,
-  body.print-report #resultTable {
+  body.print-report .report * {
     visibility: visible !important;
   }
 
-  body.print-report .results-panel,
-  body.print-report .report,
-  body.print-report #resultTable {
+  body.print-report #reportOutput {
     display: block !important;
   }
 
-  body.print-report .app-shell,
-  body.print-report .results-panel {
+  body.print-report #resultTable,
+  body.print-report .toolbar,
+  body.print-report .summary-card,
+  body.print-report header,
+  body.print-report .form-panel,
+  body.print-report .database-panel,
+  body.print-report .panel-header,
+  body.print-report label,
+  body.print-report input,
+  body.print-report select,
+  body.print-report textarea,
+  body.print-report button,
+  body.print-report .database-list {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body.print-report .app-shell {
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;

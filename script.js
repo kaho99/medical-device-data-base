@@ -5,12 +5,13 @@ const databaseList = document.getElementById('databaseList');
 const copyButton = document.getElementById('copyTable');
 const generateReportButton = document.getElementById('generateReport');
 const exportPdfButton = document.getElementById('exportPdf');
+const reportOutput = document.getElementById('reportOutput');
 const useExampleButton = document.getElementById('useExample');
 const clearFormButton = document.getElementById('clearForm');
 
 let deviceRegistry = [];
 
-if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !exportPdfButton || !useExampleButton || !clearFormButton) {
+if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !exportPdfButton || !reportOutput || !useExampleButton || !clearFormButton) {
   throw new Error('The screening page is missing required UI elements.');
 }
 
@@ -363,7 +364,7 @@ function parseReportFields(formData) {
   };
 }
 
-function generateReportForm(formData, reportFields, matchHtml) {
+function generateReportForm(formData, reportFields) {
   const sourceText = escapeHtml(reportFields.sourceText);
   const issuingAuthority = escapeHtml(reportFields.issuingAuthority);
   const alertCategory = escapeHtml(reportFields.alertCategory);
@@ -415,10 +416,6 @@ function generateReportForm(formData, reportFields, matchHtml) {
           </tr>
         </tbody>
       </table>
-
-      <br/><br/>
-      <div class="report-row report-label">Relevant device matches:</div>
-      ${matchHtml}
 
       <br/><br/>
       <div class="report-row report-underline">prepared by:</div>
@@ -514,7 +511,7 @@ copyButton.addEventListener('click', () => {
 });
 
 exportPdfButton.addEventListener('click', () => {
-  const currentReport = resultTable.innerHTML.trim();
+  const currentReport = reportOutput.innerHTML.trim();
   if (!currentReport) {
     resultSummary.innerHTML = '<strong>Please generate a report first.</strong>';
     return;
@@ -540,9 +537,7 @@ generateReportButton.addEventListener('click', () => {
   };
 
   const reportFields = parseReportFields(formData);
-  const result = screenAlert(formData.alertText, reportFields.sourceText, formData.link, formData.serialPart);
-  const matchHtml = buildTable(result.matches);
-  resultTable.innerHTML = generateReportForm(formData, reportFields, matchHtml);
+  reportOutput.innerHTML = generateReportForm(formData, reportFields);
   resultSummary.innerHTML = '<strong>Report form generated.</strong> Use Export as PDF to print the visible report.';
 });
 

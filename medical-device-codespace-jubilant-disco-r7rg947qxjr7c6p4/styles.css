@@ -275,3 +275,100 @@ caption {
     align-items: flex-start;
   }
 }
+
+/* Report form styles */
+.report {
+  background: rgba(255,255,255,0.02);
+  padding: 16px;
+  border-radius: 12px;
+}
+.report-title {
+  font-weight: 800;
+  text-decoration: underline;
+  margin: 0 0 8px 0;
+}
+.report-row {
+  margin: 6px 0;
+  color: var(--text);
+}
+.report-label {
+  font-weight: 700;
+  text-decoration: underline;
+}
+.report-underline {
+  text-decoration: underline;
+  font-weight: 600;
+}
+.report-highlight {
+  display: inline-block;
+  background: var(--accent-2);
+  color: #07111f;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.report-table td {
+  padding: 8px 6px;
+  vertical-align: top;
+}
+.report-table .part {
+  width: 36px;
+  font-weight: 700;
+}
+.report-table .subpoints {
+  margin: 6px 0 0 0;
+  padding-left: 18px;
+}
+
+@media print {
+  body:not(.print-report) {
+    visibility: hidden;
+  }
+  body.print-report {
+    background: #fff;
+    color: #000;
+    visibility: visible;
+  }
+  body.print-report * {
+    visibility: visible;
+  }
+  body.print-report .app-shell {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+  body.print-report header,
+  body.print-report .content-grid,
+  body.print-report .database-panel,
+  body.print-report .panel-header,
+  body.print-report .toolbar,
+  body.print-report label,
+  body.print-report input,
+  body.print-report select,
+  body.print-report textarea,
+  body.print-report button,
+  body.print-report .database-list,
+  body.print-report .summary-card {
+    display: none !important;
+  }
+  body.print-report #resultTable {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body.print-report .report {
+    display: block !important;
+    visibility: visible !important;
+    background: transparent !important;
+  }
+  body.print-report .report-title {
+    color: #000 !important;
+  }
+}
