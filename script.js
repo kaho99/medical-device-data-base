@@ -3,12 +3,13 @@ const resultSummary = document.getElementById('resultSummary');
 const resultTable = document.getElementById('resultTable');
 const databaseList = document.getElementById('databaseList');
 const copyButton = document.getElementById('copyTable');
+const generateReportButton = document.getElementById('generateReport');
 const useExampleButton = document.getElementById('useExample');
 const clearFormButton = document.getElementById('clearForm');
 
 let deviceRegistry = [];
 
-if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !useExampleButton || !clearFormButton) {
+if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !useExampleButton || !clearFormButton) {
   throw new Error('The screening page is missing required UI elements.');
 }
 
@@ -241,6 +242,7 @@ function buildTable(matches) {
     .map(
       (device) => `
         <tr>
+          <td>${escapeHtml(device.id)}</td>
           <td>${escapeHtml(device.description)}</td>
           <td>${escapeHtml(device.manufacturer)}</td>
           <td>${escapeHtml(device.model)}</td>
@@ -255,6 +257,7 @@ function buildTable(matches) {
       <caption class="sr-only">Relevant devices identified by screening</caption>
       <thead>
         <tr>
+          <th>Serial No.</th>
           <th>Description</th>
           <th>Make</th>
           <th>Model</th>
@@ -272,9 +275,75 @@ function buildExcelText(matches) {
   }
 
   const escapeCell = (value) => String(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
-  const header = ['Description', 'Make', 'Model', 'Issue'].join('\t');
-  const rows = matches.map((device) => [device.description, device.manufacturer, device.model, device.issue].map(escapeCell).join('\t'));
+  const header = ['Serial No.', 'Description', 'Make', 'Model', 'Issue'].join('\t');
+  const rows = matches.map((device) => [device.id, device.description, device.manufacturer, device.model, device.issue].map(escapeCell).join('\t'));
   return [header, ...rows].join('\n');
+}
+
+function generateReportForm(formData) {
+  const sourceText = escapeHtml(formData.source || 'Medical Device Safety Alert report from department of health');
+
+  return `
+    <div class="report">
+      <h2 class="report-title">SAFETY CASE ASSESSMENT &amp; PROGRESS REPORT</h2>
+      <div class="report-row"><strong>source of information:</strong> ${sourceText}</div>
+      <div class="report-row">Recieved date: ____________________</div>
+      <div class="report-row">File Ref: _________________________</div>
+
+      <br/><br/>
+      <div class="report-row report-label">Details of safety information:</div>
+      <br/>
+      <table class="report-table">
+        <tbody>
+          <tr>
+            <td class="part">a.</td>
+            <td class="part-content">Issuing authority: _______________________________</td>
+          </tr>
+          <tr>
+            <td class="part">b.</td>
+            <td class="part-content">Alert category: _________________________________</td>
+          </tr>
+          <tr>
+            <td class="part">c.</td>
+            <td class="part-content">Affected equipment/system:
+              <ul class="subpoints">
+                <li>Description: _______________________________</li>
+                <li>Manufacturer: ______________________________</li>
+                <li>Make / model: ______________________________</li>
+                <li>Serial No. (if any): ________________________</li>
+              </ul>
+            </td>
+          </tr>
+          <tr>
+            <td class="part">d.</td>
+            <td class="part-content">Description of issue: _________________________</td>
+          </tr>
+          <tr>
+            <td class="part">e.</td>
+            <td class="part-content">Reported root cause: _________________________</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <br/><br/>
+      <div class="report-row report-underline">prepared by:</div>
+      <br/>
+      <div class="report-row">Name: _______________________________</div>
+      <br/>
+      <div class="report-row">Post: ________________________________</div>
+      <br/>
+      <div class="report-row">Date: ________________________________</div>
+
+      <br/><br/>
+      <div class="report-row report-highlight">Endorsed by:</div>
+      <br/>
+      <div class="report-row">Name: _______________________________</div>
+      <br/>
+      <div class="report-row">Post: ________________________________</div>
+      <br/>
+      <div class="report-row">Date: ________________________________</div>
+    </div>
+  `;
 }
 
 function escapeHtml(value) {
@@ -345,6 +414,18 @@ copyButton.addEventListener('click', async () => {
   } catch (error) {
     resultSummary.innerHTML = '<strong>Copy failed.</strong> Please select and copy the table manually.';
   }
+});
+
+generateReportButton.addEventListener('click', () => {
+  const formData = {
+    source: document.getElementById('source').value,
+    link: document.getElementById('link').value,
+    serialPart: document.getElementById('serialPart').value,
+    alertText: document.getElementById('alertText').value
+  };
+
+  resultTable.innerHTML = generateReportForm(formData);
+  resultSummary.innerHTML = '<strong>Report form generated.</strong> Use browser print or copy to save it.';
 });
 
 useExampleButton.addEventListener('click', () => {

@@ -253,11 +253,63 @@ caption {
   margin-bottom: 4px;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
+  .report {
+    background: rgba(255,255,255,0.02);
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .report-title {
+    font-weight: 800;
+    text-decoration: underline;
+    margin: 0 0 8px 0;
+  }
+
+  .report-row {
+    margin: 6px 0;
+    color: var(--text);
+  }
+
+  .report-label {
+    font-weight: 700;
+    text-decoration: underline;
+  }
+
+  .report-underline {
+    text-decoration: underline;
+    font-weight: 600;
+  }
+
+  .report-highlight {
+    display: inline-block;
+    background: var(--accent-2);
+    color: #07111f;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+
+  .report-table td {
+    padding: 8px 6px;
+    vertical-align: top;
+  }
+
+  .report-table .part {
+    width: 36px;
+    font-weight: 700;
+  }
+
+  .report-table .subpoints {
+    margin: 6px 0 0 0;
+    padding-left: 18px;
+  }
+
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
