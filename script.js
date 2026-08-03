@@ -10,6 +10,7 @@ const useExampleButton = document.getElementById('useExample');
 const clearFormButton = document.getElementById('clearForm');
 
 let deviceRegistry = [];
+let currentMatches = [];
 
 if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !exportPdfButton || !reportOutput || !useExampleButton || !clearFormButton) {
   throw new Error('The screening page is missing required UI elements.');
@@ -248,6 +249,7 @@ function buildTable(matches) {
       )}" data-manufacturer="${escapeHtml(device.manufacturer)}" data-model="${escapeHtml(
         device.model
       )}" data-issue="${escapeHtml(device.issue)}">
+          <td class="select-cell"><input type="checkbox" class="select-match" data-id="${escapeHtml(device.id)}" aria-label="Select ${escapeHtml(device.id)}" /></td>
           <td>${escapeHtml(device.id)}</td>
           <td>${escapeHtml(device.description)}</td>
           <td>${escapeHtml(device.manufacturer)}</td>
@@ -259,10 +261,12 @@ function buildTable(matches) {
     .join('');
 
   return `
+    <div class="selection-hint"><strong>Select one or more result to include in the report.</strong></div>
     <table>
       <caption class="sr-only">Relevant devices identified by screening</caption>
       <thead>
         <tr>
+          <th>Select</th>
           <th>Serial No.</th>
           <th>Description</th>
           <th>Make</th>
@@ -368,7 +372,7 @@ function parseReportFields(formData) {
   };
 }
 
-function generateReportForm(formData, reportFields) {
+function generateReportForm(formData, reportFields, selectedDevices = []) {
   const sourceText = escapeHtml(reportFields.sourceText);
   const issuingAuthority = escapeHtml(reportFields.issuingAuthority);
   const alertCategory = escapeHtml(reportFields.alertCategory);
@@ -387,6 +391,33 @@ function generateReportForm(formData, reportFields) {
       <div class="report-row"><strong>File Ref:</strong> _________________________</div>
 
       <br/><br/>
+      ${selectedDevices.length ? `
+      <div class="report-row report-label">Selected devices included in this report:</div>
+      <br/>
+      <table class="report-table report-selected">
+        <thead>
+          <tr>
+            <th>Serial No.</th>
+            <th>Description</th>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Issue</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${selectedDevices.map((device) => `
+            <tr>
+              <td>${escapeHtml(device.id)}</td>
+              <td>${escapeHtml(device.description)}</td>
+              <td>${escapeHtml(device.manufacturer)}</td>
+              <td>${escapeHtml(device.model)}</td>
+              <td>${escapeHtml(device.issue)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <br/>
+      ` : ''}
       <div class="report-row report-label">Details of safety information:</div>
       <br/>
       <table class="report-table">
@@ -453,6 +484,7 @@ function escapeHtml(value) {
 
 function renderResult(result, formData) {
   const { matches } = result;
+  currentMatches = matches || [];
 
   if (!matches.length) {
     resultSummary.innerHTML = '<strong>No clear match.</strong> The alert does not appear to correspond to the current device register.';
@@ -465,9 +497,27 @@ function renderResult(result, formData) {
     <strong>${matchText}</strong><br />
     Source: ${escapeHtml(formData.source || 'not provided')}<br />
     Screening signal: ${matches[0].reasons.join(', ')}
+    <div class="select-hint-inline"><em>Please select one or more result to include in the report.</em></div>
   `;
   resultTable.innerHTML = buildTable(matches);
 }
+
+function getSelectedMatches() {
+  const checkboxes = Array.from(resultTable.querySelectorAll('input.select-match:checked'));
+  const ids = checkboxes.map((checkbox) => checkbox.dataset.id);
+  return currentMatches.filter((device) => ids.includes(device.id));
+}
+
+resultTable.addEventListener('change', (event) => {
+  if (!event.target || !event.target.matches('.select-match')) return;
+
+  const selected = getSelectedMatches();
+  if (selected.length) {
+    resultSummary.innerHTML = `<strong>${selected.length} selected.</strong> ${selected.length > 1 ? 'Multiple devices selected for report.' : 'One device selected for report.'}`;
+  } else {
+    resultSummary.querySelector('.select-hint-inline') && (resultSummary.querySelector('.select-hint-inline').textContent = 'Please select one or more result to include in the report.');
+  }
+});
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -502,16 +552,15 @@ copyButton.addEventListener('click', () => {
     return;
   }
 
-  const result = screenAlert(formData.alertText, formData.source, formData.link, formData.serialPart);
-
-  if (!result.matches.length) {
-    resultSummary.innerHTML = '<strong>No relevant devices found.</strong> Nothing to export.';
+  const selected = getSelectedMatches();
+  if (!selected.length) {
+    resultSummary.innerHTML = '<strong>Please select one or more result to export to Excel.</strong>';
     return;
   }
 
-  const html = buildExcelHtml(result.matches);
+  const html = buildExcelHtml(selected);
   downloadFile('device-screening-export.xls', html, 'application/vnd.ms-excel;charset=utf-8;');
-  resultSummary.innerHTML = '<strong>Excel file downloaded.</strong> Open it in Excel to view the matching table.';
+  resultSummary.innerHTML = '<strong>Excel file downloaded.</strong> Open it in Excel to view the selected matches.';
 });
 
 exportPdfButton.addEventListener('click', () => {
@@ -540,8 +589,14 @@ generateReportButton.addEventListener('click', () => {
     alertText: document.getElementById('alertText').value
   };
 
+  const selected = getSelectedMatches();
+  if (!selected.length) {
+    resultSummary.innerHTML = '<strong>Please select one or more result before generating a report.</strong>';
+    return;
+  }
+
   const reportFields = parseReportFields(formData);
-  reportOutput.innerHTML = generateReportForm(formData, reportFields);
+  reportOutput.innerHTML = generateReportForm(formData, reportFields, selected);
   resultSummary.innerHTML = '<strong>Report form generated.</strong> Use Export as PDF to print the visible report.';
 });
 
@@ -555,6 +610,8 @@ useExampleButton.addEventListener('click', () => {
 clearFormButton.addEventListener('click', () => {
   form.reset();
   document.getElementById('source').value = '';
+  reportOutput.innerHTML = '';
+  currentMatches = [];
   resultSummary.innerHTML = 'No screening has been run yet.';
   resultTable.innerHTML = '';
 });
@@ -563,6 +620,7 @@ loadDeviceRegistry();
 
 // Click-to-screen: clicking a match row will populate the form and re-run screening
 resultTable.addEventListener('click', (e) => {
+  if (e.target && e.target.closest && e.target.closest('input.select-match')) return;
   const tr = e.target.closest && e.target.closest('tr.match-row');
   if (!tr) return;
   const id = tr.dataset.id || '';
