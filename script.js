@@ -685,9 +685,11 @@ form.addEventListener('submit', (event) => {
 
   const formData = getFormData();
   const alertHtmlText = getAlertTextForScreening();
-  const screeningText = alertHtmlText.trim();
+  const alertLinks = [...extractLinksFromHtml(formData.alertHtml), ...extractLinksFromText(alertHtmlText)];
+  const normalizedLinks = alertLinks.map((link) => normalizeUrlForScreening(link)).filter(Boolean);
+  const screeningText = [alertHtmlText, ...normalizedLinks].filter(Boolean).join(' ');
 
-  if (!screeningText) {
+  if (!screeningText.trim()) {
     resultSummary.innerHTML = '<strong>Please paste an alert first.</strong>';
     resultTable.innerHTML = '';
     return;
