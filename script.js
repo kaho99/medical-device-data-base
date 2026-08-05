@@ -174,6 +174,24 @@ function getAlertHtml() {
   return field ? field.innerHTML.trim() : '';
 }
 
+function getAlertTextForScreening() {
+  const alertHtml = getAlertHtml();
+  if (!alertHtml) {
+    return getAlertText();
+  }
+
+  const helper = document.createElement('div');
+  helper.innerHTML = alertHtml;
+  helper.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href');
+    if (href) {
+      anchor.replaceWith(document.createTextNode(href.trim()));
+    }
+  });
+
+  return helper.textContent.trim();
+}
+
 function setAlertHtml(html) {
   const field = getAlertField();
   if (field) {
@@ -600,8 +618,9 @@ form.addEventListener('submit', (event) => {
   event.preventDefault();
 
   const formData = getFormData();
-  const alertLinks = [...extractLinksFromHtml(formData.alertHtml), ...extractLinksFromText(formData.alertText)];
-  const screeningText = [formData.alertText, ...alertLinks].filter(Boolean).join(' ');
+  const alertHtmlText = getAlertTextForScreening();
+  const alertLinks = [...extractLinksFromHtml(formData.alertHtml), ...extractLinksFromText(alertHtmlText)];
+  const screeningText = [alertHtmlText, ...alertLinks].filter(Boolean).join(' ');
 
   if (!screeningText.trim()) {
     resultSummary.innerHTML = '<strong>Please paste an alert first.</strong>';
