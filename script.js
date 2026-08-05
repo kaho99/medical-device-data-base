@@ -297,7 +297,7 @@ function screenAlert(alertText, source, link, serialPart) {
   });
 
   const ranked = scored
-    .filter((device) => device.baseScore > 0)
+    .filter((device) => device.matchCount > 1)
     .sort((a, b) => b.baseScore - a.baseScore || b.matchCount - a.matchCount || b.score - a.score)
     .slice(0, 6);
 
