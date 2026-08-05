@@ -104,16 +104,46 @@ async function loadDeviceRegistry() {
 }
 
 function normalize(value) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+  const rawText = String(value || '').toLowerCase();
+  const normalizedValue = rawText.replace(/[^a-z0-9]+/g, ' ').trim();
+  return normalizedValue.replace(/\b([a-z])(?:\s+([a-z])){1,2}\b/g, (_, first, second) => first + second);
+}
+
+function normalizeCompact(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
 function tokenize(value) {
   return normalize(value)
     .split(/\s+/)
     .filter(Boolean);
+}
+
+function normalizeToken(token) {
+  if (typeof token !== 'string') {
+    return token;
+  }
+
+  const trimmed = token.trim();
+  if (trimmed.length > 4 && trimmed.endsWith('s')) {
+    return trimmed.slice(0, -1);
+  }
+
+  return trimmed;
+}
+
+function countMatchingTokens(tokens, tokenSet) {
+  return new Set(
+    tokens
+      .map(normalizeToken)
+      .filter((token) => token && tokenSet.has(token))
+  ).size;
+}
+
+function fieldContainsPhrase(query, fieldValue) {
+  const normalizedQuery = normalizeCompact(query);
+  const normalizedField = normalizeCompact(fieldValue);
+  return normalizedField && normalizedQuery.includes(normalizedField);
 }
 
 function getMeaningfulTokens(value) {
@@ -123,10 +153,13 @@ function getMeaningfulTokens(value) {
     'to', 'in', 'on', 'a', 'an', 'as', 'at', 'by', 'it', 'its', 'their', 'our', 'your',
     'device', 'devices', 'alert', 'safety', 'medical', 'related', 'situation', 'issue', 'noted',
     'units', 'unit', 'manufactured', 'manufacture', 'manufacturing', 'service', 'life', 'pump',
-    'resulting', 'failure', 'provide', 'levels', 'low', 'high', 'part', 'parts'
+    'resulting', 'failure', 'provide', 'levels', 'low', 'high', 'part', 'parts',
+    'recall', 'recalls', 'health', 'canada', 'link', 'url', 'www', 'http', 'https', 'en', 'ca'
   ]);
 
-  return tokenize(value).filter((token) => token.length > 2 && !stopWords.has(token));
+  return tokenize(value)
+    .map(normalizeToken)
+    .filter((token) => token.length > 2 && !stopWords.has(token));
 }
 
 function overlapScore(value, fieldValue) {
@@ -174,19 +207,35 @@ function getAlertHtml() {
   return field ? field.innerHTML.trim() : '';
 }
 
-function normalizeAlertLinkText(value) {
-  const helper = document.createElement('div');
-  helper.innerHTML = String(value || '');
-  helper.querySelectorAll('a[href]').forEach((anchor) => {
-    const href = anchor.getAttribute('href');
-    if (href) {
-      anchor.replaceWith(document.createTextNode(href.trim()));
-    }
-  });
+function normalizeUrlForScreening(url) {
+  try {
+    const parsed = new URL(url);
+    const segments = [parsed.hostname, parsed.pathname, parsed.searchParams.toString()]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/[-_\/\.]/g, ' ')
+      .trim();
+    return segments;
+  } catch (error) {
+    return String(url || '').replace(/https?:\/\//i, '').replace(/[-_\/\.]/g, ' ').trim();
+  }
+}
 
-  let text = helper.textContent || '';
-  text = text.replace(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/gi, '$1');
-  return text.trim();
+function normalizeAlertLinkText(value) {
+  let text = String(value || '');
+
+  // Preserve visible anchor text, but drop the href URL from screening.
+  text = text.replace(/<a\b[^>]*>(.*?)<\/a>/gis, (_, anchorText) => anchorText || '');
+
+  // Preserve markdown link text, but drop the target URL.
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/gi, (_, linkText) => linkText || '');
+
+  // Remove any remaining direct URLs entirely, since only page content should be screened.
+  text = text.replace(/https?:\/\/[^\s<>"]+/gi, '');
+
+  // Strip any remaining HTML tags.
+  text = text.replace(/<[^>]+>/g, ' ');
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 function getAlertTextForScreening() {
@@ -238,6 +287,21 @@ function getFormData() {
   };
 }
 
+function extractAlertCriteria(formData) {
+  const alertSource = getAlertTextForScreening();
+  const serialNumber = String(formData.serialPart || '').trim() || extractReportField(/serial(?: number)?[:\s]*([^\n\.]+)/i, alertSource);
+  const rawMake = extractReportField(/manufacturer[:\s]*([^\n\.]+)/i, alertSource);
+  const rawModel = extractReportField(/model[:\s]*([^\n\.]+)/i, alertSource);
+  const rawDescription = extractReportField(/(?:affected equipment|affected equipment\/system|affected system|equipment\/system|equipment|product|item)[\s:\-]*([^\n\.]+)/i, alertSource);
+
+  return {
+    serialNumber: serialNumber || '',
+    make: rawMake || '',
+    model: rawModel || '',
+    description: rawDescription || ''
+  };
+}
+
 function updateSelectionControls() {
   const hasSelection = getSelectedMatches().length > 0;
   generateReportButton.disabled = !hasSelection;
@@ -253,45 +317,41 @@ function clearSelection() {
   updateSelectionControls();
 }
 
-function screenAlert(alertText, source, link, serialPart) {
-  const queryParts = [alertText, source, link, serialPart].filter((value) => String(value || '').trim());
-  const query = normalize(queryParts.join(' '));
-  const alertMeaningfulTokens = new Set(getMeaningfulTokens(query));
-  const serialText = normalize(serialPart);
+function screenAlert(criteria) {
+  const serialText = normalize(criteria.serialNumber);
+  const descriptionText = normalize(criteria.description);
+  const makeText = normalize(criteria.make);
+  const modelText = normalize(criteria.model);
 
-  if (!alertMeaningfulTokens.size) {
+  if (!serialText && !descriptionText && !makeText && !modelText) {
     return { matches: [], scored: [] };
   }
 
   const scored = deviceRegistry.map((device) => {
     const reasons = [];
-    const descriptionText = normalize(device.description);
-    const manufacturerText = normalize(device.manufacturer);
-    const modelText = normalize(device.model);
+    const deviceDescription = normalize(device.description);
+    const deviceManufacturer = normalize(device.manufacturer);
+    const deviceModel = normalize(device.model);
 
-    const descriptionScore = overlapScore(query, descriptionText);
     const descriptionMatch = descriptionText && (
-      descriptionScore >= 0.4 ||
-      query.includes(descriptionText) ||
-      tokenize(device.description).some((token) => alertMeaningfulTokens.has(token))
+      deviceDescription.includes(descriptionText) ||
+      descriptionText.includes(deviceDescription)
     );
     if (descriptionMatch) {
       reasons.push('description');
     }
 
-    const manufacturerTokens = tokenize(device.manufacturer);
-    const makeMatch = manufacturerText && (
-      manufacturerTokens.some((token) => alertMeaningfulTokens.has(token)) ||
-      query.includes(manufacturerText)
+    const makeMatch = makeText && (
+      deviceManufacturer.includes(makeText) ||
+      makeText.includes(deviceManufacturer)
     );
     if (makeMatch) {
       reasons.push('make');
     }
 
-    const modelTokens = tokenize(device.model);
     const modelMatch = modelText && (
-      modelTokens.some((token) => alertMeaningfulTokens.has(token)) ||
-      query.includes(modelText)
+      deviceModel.includes(modelText) ||
+      modelText.includes(deviceModel)
     );
     if (modelMatch) {
       reasons.push('model');
@@ -299,17 +359,16 @@ function screenAlert(alertText, source, link, serialPart) {
 
     const serialMatch = serialText && (
       normalize(device.id).includes(serialText) ||
-      modelText.includes(serialText) ||
-      descriptionText.includes(serialText) ||
-      manufacturerText.includes(serialText)
+      deviceModel.includes(serialText) ||
+      deviceDescription.includes(serialText) ||
+      deviceManufacturer.includes(serialText)
     );
     if (serialMatch) {
       reasons.push('serial no.');
     }
 
     const baseScore = (descriptionMatch ? 50 : 0) + (makeMatch ? 50 : 0) + (modelMatch ? 30 : 0) + (serialMatch ? 20 : 0);
-    const keywordOverlap = device.searchTokens.filter((token) => alertMeaningfulTokens.has(token)).length;
-    const score = baseScore + Math.min(keywordOverlap, 6);
+    const score = baseScore;
 
     return {
       ...device,
@@ -451,17 +510,18 @@ function extractReportField(pattern, text) {
 function parseReportFields(formData) {
   const alertText = String(formData.alertText || '');
   const defaultSource = 'Medical Device Safety Alert report from department of health';
+  const serialField = extractReportField(/serial(?: number)?[:\s]*([^\n\.]+)/i, alertText);
 
   return {
     sourceText: defaultSource,
     issuingAuthority: defaultSource,
-    alertCategory: extractReportField(/alert category[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
-    affectedDescription: extractReportField(/(?:affected equipment|affected equipment\/system|affected system|equipment\/system|equipment)[\s:\-]*([^\n\.]+)/i, alertText) || 'Not specified',
-    affectedManufacturer: extractReportField(/manufacturer[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
-    affectedModel: extractReportField(/model[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
-    serialNumber: extractReportField(/serial(?: number)?[:\s]*([^\n\.]+)/i, alertText) || String(formData.serialPart || 'Not specified'),
-    descriptionOfIssue: extractReportField(/(?:issue|problem|fault|failure|malfunction|defect)[:\s]*([^\n\.]+)/i, alertText) || 'Not specified',
-    reportedRootCause: extractReportField(/(?:root cause|cause)[:\s]*([^\n\.]+)/i, alertText) || 'Not specified'
+    alertCategory: extractReportField(/alert category[:\s]*([^\n\.]+)/i, alertText) || 'N/A',
+    affectedDescription: extractReportField(/(?:affected equipment|affected equipment\/system|affected system|equipment\/system|equipment|product|item)[\s:\-]*([^\n\.]+)/i, alertText) || 'N/A',
+    affectedManufacturer: extractReportField(/manufacturer[:\s]*([^\n\.]+)/i, alertText) || 'N/A',
+    affectedModel: extractReportField(/model[:\s]*([^\n\.]+)/i, alertText) || 'N/A',
+    serialNumber: serialField || String(formData.serialPart || 'N/A'),
+    descriptionOfIssue: extractReportField(/(?:issue|problem|fault|failure|malfunction|defect)[:\s]*([^\n\.]+)/i, alertText) || 'N/A',
+    reportedRootCause: extractReportField(/(?:root cause|cause)[:\s]*([^\n\.]+)/i, alertText) || 'N/A'
   };
 }
 
@@ -626,7 +686,8 @@ form.addEventListener('submit', (event) => {
   const formData = getFormData();
   const alertHtmlText = getAlertTextForScreening();
   const alertLinks = [...extractLinksFromHtml(formData.alertHtml), ...extractLinksFromText(alertHtmlText)];
-  const screeningText = [alertHtmlText, ...alertLinks].filter(Boolean).join(' ');
+  const normalizedLinks = alertLinks.map((link) => normalizeUrlForScreening(link)).filter(Boolean);
+  const screeningText = [alertHtmlText, ...normalizedLinks].filter(Boolean).join(' ');
 
   if (!screeningText.trim()) {
     resultSummary.innerHTML = '<strong>Please paste an alert first.</strong>';
@@ -634,7 +695,12 @@ form.addEventListener('submit', (event) => {
     return;
   }
 
-  const result = screenAlert(screeningText, formData.source, formData.link, formData.serialPart);
+  const criteria = extractAlertCriteria({
+    ...formData,
+    alertText: alertHtmlText
+  });
+
+  const result = screenAlert(criteria);
   renderResult(result, formData);
 });
 
@@ -736,7 +802,8 @@ resultTable.addEventListener('click', (e) => {
     alertHtml: getAlertHtml()
   };
 
-  const result = screenAlert(formData.alertText, formData.source, formData.link, formData.serialPart);
+const criteria = extractAlertCriteria(formData);
+    const result = screenAlert(criteria);
   renderResult(result, formData);
   resultSummary.innerHTML = '<strong>Screened selected device.</strong>';
 });
