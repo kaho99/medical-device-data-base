@@ -174,14 +174,9 @@ function getAlertHtml() {
   return field ? field.innerHTML.trim() : '';
 }
 
-function getAlertTextForScreening() {
-  const alertHtml = getAlertHtml();
-  if (!alertHtml) {
-    return getAlertText();
-  }
-
+function normalizeAlertLinkText(value) {
   const helper = document.createElement('div');
-  helper.innerHTML = alertHtml;
+  helper.innerHTML = String(value || '');
   helper.querySelectorAll('a[href]').forEach((anchor) => {
     const href = anchor.getAttribute('href');
     if (href) {
@@ -189,7 +184,18 @@ function getAlertTextForScreening() {
     }
   });
 
-  return helper.textContent.trim();
+  let text = helper.textContent || '';
+  text = text.replace(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/gi, '$1');
+  return text.trim();
+}
+
+function getAlertTextForScreening() {
+  const alertHtml = getAlertHtml();
+  if (alertHtml) {
+    return normalizeAlertLinkText(alertHtml);
+  }
+
+  return normalizeAlertLinkText(getAlertText());
 }
 
 function setAlertHtml(html) {
