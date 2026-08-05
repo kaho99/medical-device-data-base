@@ -11,6 +11,7 @@ const clearFormButton = document.getElementById('clearForm');
 
 let deviceRegistry = [];
 let currentMatches = [];
+let selectedDeviceIds = new Set();
 
 if (!form || !resultSummary || !resultTable || !databaseList || !copyButton || !generateReportButton || !exportPdfButton || !reportOutput || !useExampleButton || !clearFormButton) {
   throw new Error('The screening page is missing required UI elements.');
@@ -159,6 +160,75 @@ function renderDatabase() {
     .join('')}`;
 }
 
+function getAlertField() {
+  return document.getElementById('alertText');
+}
+
+function getAlertText() {
+  const field = getAlertField();
+  return field ? field.textContent.trim() : '';
+}
+
+function getAlertHtml() {
+  const field = getAlertField();
+  return field ? field.innerHTML.trim() : '';
+}
+
+function setAlertHtml(html) {
+  const field = getAlertField();
+  if (field) {
+    field.innerHTML = html || '';
+  }
+}
+
+function extractLinksFromHtml(html) {
+  const links = [];
+  const helper = document.createElement('div');
+  helper.innerHTML = html || '';
+  helper.querySelectorAll('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href');
+    if (href) {
+      links.push(href.trim());
+    }
+  });
+  return links;
+}
+
+function extractLinksFromText(text) {
+  const links = [];
+  const pattern = /(https?:\/\/[^\s<>"']+)/gi;
+  let match;
+  while ((match = pattern.exec(text))) {
+    links.push(match[1]);
+  }
+  return links;
+}
+
+function getFormData() {
+  return {
+    source: document.getElementById('source').value,
+    link: document.getElementById('link').value,
+    serialPart: document.getElementById('serialPart').value,
+    alertText: getAlertText(),
+    alertHtml: getAlertHtml()
+  };
+}
+
+function updateSelectionControls() {
+  const hasSelection = getSelectedMatches().length > 0;
+  generateReportButton.disabled = !hasSelection;
+  exportPdfButton.disabled = !hasSelection || !reportOutput.innerHTML.trim();
+}
+
+function getSelectedMatches() {
+  return currentMatches.filter((device) => selectedDeviceIds.has(device.id));
+}
+
+function clearSelection() {
+  selectedDeviceIds.clear();
+  updateSelectionControls();
+}
+
 function screenAlert(alertText, source, link, serialPart) {
   const queryParts = [alertText, source, link, serialPart].filter((value) => String(value || '').trim());
   const query = normalize(queryParts.join(' '));
@@ -169,68 +239,66 @@ function screenAlert(alertText, source, link, serialPart) {
     return { matches: [], scored: [] };
   }
 
-  const candidateDevices = deviceRegistry.filter((device) => {
-    if (!device.searchTokens?.length) {
-      return false;
-    }
-    return device.searchTokens.some((token) => alertMeaningfulTokens.has(token));
-  });
-
-  const scored = candidateDevices.map((device) => {
+  const scored = deviceRegistry.map((device) => {
     const reasons = [];
-    let score = 0;
-
     const descriptionText = normalize(device.description);
+    const manufacturerText = normalize(device.manufacturer);
     const modelText = normalize(device.model);
-    const objectTypeText = normalize(device.objectType);
 
     const descriptionScore = overlapScore(query, descriptionText);
-    if (descriptionScore >= 0.4 || query.includes(descriptionText)) {
-      score += 10;
+    const descriptionMatch = descriptionText && (
+      descriptionScore >= 0.4 ||
+      query.includes(descriptionText) ||
+      tokenize(device.description).some((token) => alertMeaningfulTokens.has(token))
+    );
+    if (descriptionMatch) {
       reasons.push('description');
     }
 
     const manufacturerTokens = tokenize(device.manufacturer);
-    const manufacturerMatch = manufacturerTokens.some((token) => alertMeaningfulTokens.has(token));
-    if (manufacturerMatch) {
-      score += 8;
-      reasons.push('manufacturer');
+    const makeMatch = manufacturerText && (
+      manufacturerTokens.some((token) => alertMeaningfulTokens.has(token)) ||
+      query.includes(manufacturerText)
+    );
+    if (makeMatch) {
+      reasons.push('make');
     }
 
     const modelTokens = tokenize(device.model);
-    const modelMatch = modelTokens.some((token) => alertMeaningfulTokens.has(token));
+    const modelMatch = modelText && (
+      modelTokens.some((token) => alertMeaningfulTokens.has(token)) ||
+      query.includes(modelText)
+    );
     if (modelMatch) {
-      score += 8;
       reasons.push('model');
     }
 
-    if (serialText && (modelText.includes(serialText) || descriptionText.includes(serialText))) {
-      score += 6;
-      reasons.push('serial/part');
+    const serialMatch = serialText && (
+      normalize(device.id).includes(serialText) ||
+      modelText.includes(serialText) ||
+      descriptionText.includes(serialText) ||
+      manufacturerText.includes(serialText)
+    );
+    if (serialMatch) {
+      reasons.push('serial no.');
     }
 
-    if (objectTypeText && alertMeaningfulTokens.has(normalize(objectTypeText))) {
-      score += 3;
-      reasons.push('object type');
-    }
+    const baseScore = (descriptionMatch ? 50 : 0) + (makeMatch ? 50 : 0) + (modelMatch ? 30 : 0) + (serialMatch ? 20 : 0);
+    const keywordOverlap = device.searchTokens.filter((token) => alertMeaningfulTokens.has(token)).length;
+    const score = baseScore + Math.min(keywordOverlap, 6);
 
-    const keywordMatches = device.keywords.filter((keyword) => alertMeaningfulTokens.has(normalize(keyword))).length;
-    if (keywordMatches) {
-      score += keywordMatches;
-    }
-
-    const sharedTokenCount = device.searchTokens.filter((token) => alertMeaningfulTokens.has(token)).length;
-    if (sharedTokenCount) {
-      score += sharedTokenCount;
-      reasons.push('keyword overlap');
-    }
-
-    return { ...device, score, reasons: [...new Set(reasons)] };
+    return {
+      ...device,
+      score,
+      baseScore,
+      matchCount: reasons.length,
+      reasons: [...new Set(reasons)]
+    };
   });
 
   const ranked = scored
-    .filter((device) => device.score >= 12 && device.reasons.length >= 2)
-    .sort((a, b) => b.score - a.score || b.reasons.length - a.reasons.length)
+    .filter((device) => device.baseScore > 0)
+    .sort((a, b) => b.baseScore - a.baseScore || b.matchCount - a.matchCount || b.score - a.score)
     .slice(0, 6);
 
   return { matches: ranked, scored };
@@ -242,22 +310,23 @@ function buildTable(matches) {
   }
 
   const rows = matches
-    .map(
-      (device) => `
-        <tr class="match-row" data-id="${escapeHtml(device.id)}" data-description="${escapeHtml(
+    .map((device) => {
+      const isSelected = selectedDeviceIds.has(device.id);
+      return `
+        <tr class="match-row${isSelected ? ' selected' : ''}" data-id="${escapeHtml(device.id)}" data-description="${escapeHtml(
         device.description
       )}" data-manufacturer="${escapeHtml(device.manufacturer)}" data-model="${escapeHtml(
         device.model
       )}" data-issue="${escapeHtml(device.issue)}">
-          <td class="select-cell"><input type="checkbox" class="select-match" data-id="${escapeHtml(device.id)}" aria-label="Select ${escapeHtml(device.id)}" /></td>
+          <td class="select-cell"><input type="checkbox" class="select-match" data-id="${escapeHtml(device.id)}" ${isSelected ? 'checked' : ''} aria-label="Select ${escapeHtml(device.id)}" /></td>
           <td>${escapeHtml(device.id)}</td>
           <td>${escapeHtml(device.description)}</td>
           <td>${escapeHtml(device.manufacturer)}</td>
           <td>${escapeHtml(device.model)}</td>
           <td>${escapeHtml(device.issue)}</td>
         </tr>
-      `
-    )
+      `;
+    })
     .join('');
 
   return `
@@ -485,10 +554,13 @@ function escapeHtml(value) {
 function renderResult(result, formData) {
   const { matches } = result;
   currentMatches = matches || [];
+  selectedDeviceIds.clear();
+  reportOutput.innerHTML = '';
 
   if (!matches.length) {
     resultSummary.innerHTML = '<strong>No clear match.</strong> The alert does not appear to correspond to the current device register.';
     resultTable.innerHTML = '<p role="status">No clear matches found.</p>';
+    updateSelectionControls();
     return;
   }
 
@@ -496,56 +568,53 @@ function renderResult(result, formData) {
   resultSummary.innerHTML = `
     <strong>${matchText}</strong><br />
     Source: ${escapeHtml(formData.source || 'not provided')}<br />
-    Screening signal: ${matches[0].reasons.join(', ')}
-    <div class="select-hint-inline"><em>Please select one or more result to include in the report.</em></div>
+    Screening signal: ${matches[0].reasons.join(', ')}<br />
+    <div class="selection-hint">Select one or more results to enable report generation.</div>
   `;
   resultTable.innerHTML = buildTable(matches);
-}
-
-function getSelectedMatches() {
-  const checkboxes = Array.from(resultTable.querySelectorAll('input.select-match:checked'));
-  const ids = checkboxes.map((checkbox) => checkbox.dataset.id);
-  return currentMatches.filter((device) => ids.includes(device.id));
+  updateSelectionControls();
 }
 
 resultTable.addEventListener('change', (event) => {
   if (!event.target || !event.target.matches('.select-match')) return;
 
+  const checkbox = event.target;
+  const id = checkbox.dataset.id;
+  if (checkbox.checked) {
+    selectedDeviceIds.add(id);
+  } else {
+    selectedDeviceIds.delete(id);
+  }
+
+  resultTable.innerHTML = buildTable(currentMatches);
   const selected = getSelectedMatches();
   if (selected.length) {
     resultSummary.innerHTML = `<strong>${selected.length} selected.</strong> ${selected.length > 1 ? 'Multiple devices selected for report.' : 'One device selected for report.'}`;
   } else {
-    resultSummary.querySelector('.select-hint-inline') && (resultSummary.querySelector('.select-hint-inline').textContent = 'Please select one or more result to include in the report.');
+    resultSummary.innerHTML = '<div class="selection-hint">Select one or more results to enable report generation.</div>';
   }
+  updateSelectionControls();
 });
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
 
-  const formData = {
-    source: document.getElementById('source').value,
-    link: document.getElementById('link').value,
-    serialPart: document.getElementById('serialPart').value,
-    alertText: document.getElementById('alertText').value
-  };
+  const formData = getFormData();
+  const alertLinks = [...extractLinksFromHtml(formData.alertHtml), ...extractLinksFromText(formData.alertText)];
+  const screeningText = [formData.alertText, ...alertLinks].filter(Boolean).join(' ');
 
-  if (!formData.alertText.trim()) {
+  if (!screeningText.trim()) {
     resultSummary.innerHTML = '<strong>Please paste an alert first.</strong>';
     resultTable.innerHTML = '';
     return;
   }
 
-  const result = screenAlert(formData.alertText, formData.source, formData.link, formData.serialPart);
+  const result = screenAlert(screeningText, formData.source, formData.link, formData.serialPart);
   renderResult(result, formData);
 });
 
 copyButton.addEventListener('click', () => {
-  const formData = {
-    source: document.getElementById('source').value,
-    link: document.getElementById('link').value,
-    serialPart: document.getElementById('serialPart').value,
-    alertText: document.getElementById('alertText').value
-  };
+  const formData = getFormData();
 
   if (!formData.alertText.trim()) {
     resultSummary.innerHTML = '<strong>Please paste an alert first.</strong>';
@@ -565,8 +634,9 @@ copyButton.addEventListener('click', () => {
 
 exportPdfButton.addEventListener('click', () => {
   const currentReport = reportOutput.innerHTML.trim();
-  if (!currentReport) {
-    resultSummary.innerHTML = '<strong>Please generate a report first.</strong>';
+  const selected = getSelectedMatches();
+  if (!currentReport || !selected.length) {
+    resultSummary.innerHTML = '<strong>Please select one or more results and generate a report first.</strong>';
     return;
   }
 
@@ -582,40 +652,42 @@ exportPdfButton.addEventListener('click', () => {
 });
 
 generateReportButton.addEventListener('click', () => {
-  const formData = {
-    source: document.getElementById('source').value,
-    link: document.getElementById('link').value,
-    serialPart: document.getElementById('serialPart').value,
-    alertText: document.getElementById('alertText').value
-  };
+  const formData = getFormData();
 
   const selected = getSelectedMatches();
   if (!selected.length) {
-    resultSummary.innerHTML = '<strong>Please select one or more result before generating a report.</strong>';
+    reportOutput.innerHTML = '';
+    resultSummary.innerHTML = '<strong>Please select one or more results.</strong> The report cannot be generated until at least one screening result is selected.';
     return;
   }
 
   const reportFields = parseReportFields(formData);
   reportOutput.innerHTML = generateReportForm(formData, reportFields, selected);
-  resultSummary.innerHTML = '<strong>Report form generated.</strong> Use Export as PDF to print the visible report.';
+  resultSummary.innerHTML = `<strong>Report form generated.</strong> ${selected.length} result${selected.length === 1 ? '' : 's'} included in the report and PDF export.`;
+  updateSelectionControls();
 });
 
 useExampleButton.addEventListener('click', () => {
   document.getElementById('source').value = 'TGA';
   document.getElementById('link').value = 'https://apps.tga.gov.au/PROD/DRAC/arn-entry.aspx';
   document.getElementById('serialPart').value = 'LCSU 4';
-  document.getElementById('alertText').value = `TGA Safety Alert: Laerdal airway aspirators. The service life of LCSU 4 units manufactured between 9 August 2018 and 6 June 2020 may be reduced due to weakness in the design and assembly process. The pump may malfunction resulting in low suction levels or failure to provide suction.`;
+  setAlertHtml(`TGA Safety Alert: Laerdal airway aspirators. The service life of LCSU 4 units manufactured between 9 August 2018 and 6 June 2020 may be reduced due to weakness in the design and assembly process. The pump may malfunction resulting in low suction levels or failure to provide suction.`);
 });
 
 clearFormButton.addEventListener('click', () => {
   form.reset();
+  setAlertHtml('');
   document.getElementById('source').value = '';
   reportOutput.innerHTML = '';
   currentMatches = [];
+  selectedDeviceIds.clear();
   resultSummary.innerHTML = 'No screening has been run yet.';
   resultTable.innerHTML = '';
+  updateSelectionControls();
 });
 
+generateReportButton.disabled = true;
+exportPdfButton.disabled = true;
 loadDeviceRegistry();
 
 // Click-to-screen: clicking a match row will populate the form and re-run screening
@@ -629,13 +701,14 @@ resultTable.addEventListener('click', (e) => {
   const serialInput = document.getElementById('serialPart');
   const alertInput = document.getElementById('alertText');
   if (serialInput) serialInput.value = id;
-  if (alertInput) alertInput.value = description;
+  if (alertInput) setAlertHtml(escapeHtml(description));
 
   const formData = {
     source: document.getElementById('source').value,
     link: document.getElementById('link').value,
     serialPart: serialInput ? serialInput.value : id,
-    alertText: alertInput ? alertInput.value : description
+    alertText: getAlertText(),
+    alertHtml: getAlertHtml()
   };
 
   const result = screenAlert(formData.alertText, formData.source, formData.link, formData.serialPart);

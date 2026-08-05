@@ -122,7 +122,8 @@ form label {
 input,
 select,
 textarea,
-button {
+button,
+.textarea-like {
   font: inherit;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -143,13 +144,32 @@ select option {
 
 input,
 select,
-textarea {
+textarea,
+.textarea-like {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
 }
 
-textarea {
+textarea,
+.textarea-like {
   resize: vertical;
+}
+
+.textarea-like {
+  min-height: 220px;
+  display: block;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+.textarea-like:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+
+.textarea-like a {
+  text-decoration: underline;
+  color: var(--accent);
 }
 
 button {
@@ -177,6 +197,12 @@ button.secondary {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
 }
 
 .procedure-panel {
@@ -238,6 +264,19 @@ caption {
   cursor: pointer;
 }
 .match-row:hover { background: rgba(255,255,255,0.04); }
+.match-row.selected {
+  background: rgba(103, 247, 197, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(103, 247, 197, 0.26);
+}
+.select-cell {
+  width: 58px;
+  text-align: center;
+}
+.selection-hint {
+  margin-top: 8px;
+  color: var(--accent-2);
+  font-weight: 600;
+}
 
 .database-list {
   display: grid;
